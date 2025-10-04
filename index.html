@@ -5,26 +5,62 @@
   <title>イベントマップ</title>
 </head>
 <body>
-  <h1>地図テストページ</h1>
+  <h1>イベントマップ（Googleカレンダー連携）</h1>
   <div id="map" style="width:100%;height:500px;"></div>
 
   <script>
+    // あなたのカレンダー情報
     const CALENDAR_ID = "6d86e4deac7510a0852c7755f577286aa5833f53689e9397eb3f2f270a8e959c@group.calendar.google.com";
     const CALENDAR_API_KEY = "AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q";
-    // 参考用に残しますが、下の <script src=...> 側に直接キーを入れて読み込みます
-    const MAPS_API_KEY = "AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q";
 
-    function initMap() {
-      new google.maps.Map(document.getElementById("map"), {
+    async function loadEvents() {
+      const now = new Date().toISOString();
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${CALENDAR_ID}/events?key=${CALENDAR_API_KEY}&timeMin=${now}&singleEvents=true&orderBy=startTime`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+      return data.items || [];
+    }
+
+    async function initMap() {
+      const map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 35.6812, lng: 139.7671 },
-        zoom: 12
+        zoom: 11,
       });
+
+      const events = await loadEvents();
+
+      for (const event of events) {
+        if (!event.location) continue;
+
+        const start = new Date(event.start.dateTime || event.start.date);
+        const end = new Date(event.end.dateTime || event.end.date);
+        const now = new Date();
+
+        // 現在時刻がイベント期間内ならピンを立てる
+        if (now >= start && now <= end) {
+          const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(event.location)}&key=${CALENDAR_API_KEY}`;
+          const geoRes = await fetch(geocodeUrl);
+          const geoData = await geoRes.json();
+          if (!geoData.results[0]) continue;
+
+          const position = geoData.results[0].geometry.location;
+          const marker = new google.maps.Marker({
+            position,
+            map,
+            title: event.summary || "イベント",
+          });
+
+          const info = new google.maps.InfoWindow({
+            content: `<strong>${event.summary}</strong><br>${event.location}<br>${start.toLocaleDateString()}〜${end.toLocaleDateString()}`,
+          });
+
+          marker.addListener("click", () => info.open(map, marker));
+        }
+      }
     }
   </script>
 
-  <!-- ここを実キーに差し替え済み。loading=async を付与 -->
-  <script async
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q&callback=initMap&loading=async">
-  </script>
+  <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q&callback=initMap&loading=async"></script>
 </body>
 </html>
