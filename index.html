@@ -11,16 +11,20 @@
   <script>
     const CALENDAR_ID = "6d86e4deac7510a0852c7755f577286aa5833f53689e9397eb3f2f270a8e959c@group.calendar.google.com";
     const CALENDAR_API_KEY = "AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q";
+    // 参考用に残しますが、下の <script src=...> 側に直接キーを入れて読み込みます
     const MAPS_API_KEY = "AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q";
 
     function initMap() {
-      const map = new google.maps.Map(document.getElementById("map"), {
+      new google.maps.Map(document.getElementById("map"), {
         center: { lat: 35.6812, lng: 139.7671 },
-        zoom: 12,
+        zoom: 12
       });
     }
   </script>
 
-  <script async src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap"></script>
+  <!-- ここを実キーに差し替え済み。loading=async を付与 -->
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q&callback=initMap&loading=async">
+  </script>
 </body>
 </html>
