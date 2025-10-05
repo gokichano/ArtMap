@@ -2,70 +2,309 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>イベントマップ</title>
+  <title>ArtMaps</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#f7f7f9; --card:#fff; --border:#d1d1d6; --accent:#007aff; --gray:#6e6e73;
+      --shadow:0 1px 4px rgba(0,0,0,.05);
+      --clr-active:rgba(255,0,0,.2); --clr-soon:rgba(0,122,255,.2);
+      --clr-ending:rgba(255,149,0,.25); --clr-future:rgba(180,180,180,.25);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Futura",-apple-system,"Helvetica Neue","Noto Sans JP",sans-serif;background:var(--bg);color:#1d1d1f;overflow:hidden}
+
+    header{
+      display:flex;align-items:center;justify-content:space-between;
+      background:var(--card);border-bottom:1px solid var(--border);
+      padding:8px 16px;box-shadow:var(--shadow);
+      height:44px;z-index:3
+    }
+    header h1{margin:0;font-size:18px;font-weight:300;letter-spacing:.4px}
+    header button{
+      background:none;border:none;font-size:20px;
+      color:var(--accent);cursor:pointer;line-height:1
+    }
+
+    main{display:flex;height:calc(100vh - 44px);position:relative;overflow:hidden}
+    #map{flex:1;height:100%;width:100%;}
+
+    #searchBar{
+      position:absolute;top:10px;left:50%;transform:translateX(-50%);
+      background:rgba(255,255,255,0.96);backdrop-filter:blur(6px);
+      display:flex;align-items:center;gap:8px;
+      padding:6px 14px;border-radius:50px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.08);
+      z-index:5;width:260px;flex-direction:column;
+    }
+    #searchInner{
+      display:flex;align-items:center;width:100%;
+    }
+    #searchInner input{
+      border:none;outline:none;background:none;width:100%;
+      font-size:14px;color:#333;
+    }
+    #searchInner input::placeholder{color:#aaa}
+    #searchInner i{color:#999;font-size:15px;}
+    #clearBtn{background:none;border:none;color:#888;font-size:16px;margin-left:4px;cursor:pointer;display:none;}
+
+    #suggestions {
+      position: absolute;
+      top: 38px;
+      left: 0;
+      width: 100%;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border-radius: 8px;
+      display: none;
+      z-index: 9999;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .suggestion-item {
+      padding: 8px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .suggestion-item:hover {
+      background: #f2f2f7;
+    }
+
+    aside{
+      width:340px;background:#fcfcfd;border-left:1px solid var(--border);box-shadow:var(--shadow);
+      display:flex;flex-direction:column;transition:transform .3s ease;z-index:10;
+      position:absolute;right:0;top:0;height:100%;
+    }
+    aside.hidden{transform:translateX(100%)}
+
+    #tabs{display:flex;border-bottom:1px solid var(--border);background:#fafafa}
+    .tab{flex:1;padding:8px 0;text-align:center;font-size:13px;color:var(--gray);cursor:pointer;transition:color .2s}
+    .tab.active{color:var(--accent);font-weight:600;border-bottom:2px solid var(--accent)}
+
+    #eventList{flex:1;overflow-y:auto;padding:10px;background:var(--bg)}
+    .event{
+      background:var(--card);border-radius:10px;margin-bottom:10px;padding:12px;
+      box-shadow:0 1px 6px rgba(0,0,0,.05);cursor:pointer;border:2px solid transparent;
+      transition:transform .15s ease;position:relative;
+    }
+    .event:hover{transform:scale(1.02)}
+    .activeEv{border-color:var(--clr-active)} .soonEv{border-color:var(--clr-soon)}
+    .endingEv{border-color:var(--clr-ending)} .futureEv{border-color:var(--clr-future)}
+    .eventTitle{font-weight:500;font-size:14px}
+    .eventDate{font-size:13px;margin-top:4px}
+    .eventDate.active{color:#007aff;font-weight:700}
+    .eventDate.future{color:#ff3b30;font-weight:700}
+    .eventPeriod{font-size:12px;color:#888;margin-top:4px;}
+    .eventLocation{font-size:11px;color:#888;margin-top:4px;}
+    .mapLink{
+      display:inline-block;font-size:11px;color:#007aff;border:1px solid #d0d0d0;
+      padding:2px 6px;border-radius:8px;background:#fafafa;margin-top:6px;
+      text-decoration:none;
+    }
+
+    #status{position:fixed;left:8px;bottom:8px;background:rgba(0,0,0,.75);color:#fff;
+      padding:6px 10px;border-radius:10px;font-size:12px;z-index:9999}
+  </style>
 </head>
 <body>
-  <h1>イベントマップ（Googleカレンダー連携）</h1>
-  <div id="map" style="width:100%;height:500px;"></div>
+  <header>
+    <h1>ArtMaps</h1>
+    <button id="toggleBtn">☰</button>
+  </header>
+
+  <main>
+    <div id="map"></div>
+    <div id="searchBar">
+      <div id="searchInner">
+        <i>🔍</i>
+        <input type="text" id="searchBox" placeholder="アートを探索">
+        <button id="clearBtn">×</button>
+      </div>
+      <div id="suggestions"></div>
+    </div>
+
+    <aside class="hidden" id="sidebar">
+      <div id="tabs">
+        <div class="tab active" data-status="all">すべて</div>
+        <div class="tab" data-status="active">開催中</div>
+        <div class="tab" data-status="soon">開始3日以内</div>
+        <div class="tab" data-status="ending">終了3日以内</div>
+        <div class="tab" data-status="future">開催前</div>
+      </div>
+      <div id="eventList"></div>
+    </aside>
+  </main>
+  <div id="status">初期化中…</div>
 
   <script>
-    // あなたのカレンダー情報
-    const CALENDAR_ID = "6d86e4deac7510a0852c7755f577286aa5833f53689e9397eb3f2f270a8e959c@group.calendar.google.com";
-    const CALENDAR_API_KEY = "AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q";
+    const CALENDAR_ID="6d86e4deac7510a0852c7755f577286aa5833f53689e9397eb3f2f270a8e959c@group.calendar.google.com";
+    const API_KEY="AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q";
+    let map,geocoder,markers=[],openInfo=null,searchQuery="";
 
-    async function loadEvents() {
-      const now = new Date().toISOString();
-      const url = `https://www.googleapis.com/calendar/v3/calendars/${CALENDAR_ID}/events?key=${CALENDAR_API_KEY}&timeMin=${now}&singleEvents=true&orderBy=startTime`;
+    document.getElementById("toggleBtn").onclick=()=>{
+      document.getElementById("sidebar").classList.toggle("hidden");
+    };
 
-      const response = await fetch(url);
-      const data = await response.json();
-      return data.items || [];
+    function setStatus(m){document.getElementById("status").textContent=m;}
+    function isoDaysFromNow(d){let x=new Date();x.setDate(x.getDate()+d);return x.toISOString()}
+
+    function markerStatus(ev){
+      const now=Date.now();
+      const s=new Date(ev.start.dateTime||ev.start.date).getTime();
+      const e=new Date(ev.end.dateTime||ev.end.date).getTime();
+      const thr=3*24*3600*1000;
+      if(now>=s&&now<=e)return e-now<=thr?"ending":"active";
+      if(s-now<=thr&&s>now)return"soon";
+      if(s>now)return"future";
+      return"past";
     }
 
-    async function initMap() {
-      const map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 35.6812, lng: 139.7671 },
-        zoom: 11,
+    function labelDays(ev,st){
+      const now=new Date();
+      const s=new Date(ev.start.dateTime||ev.start.date);
+      const e=new Date(ev.end.dateTime||ev.end.date);
+      const ds=Math.ceil((s-now)/86400000),de=Math.ceil((e-now)/86400000);
+      if(st==="active")return`開催中（あと${de}日で終了）`;
+      if(st==="ending")return`終了まであと${de}日`;
+      if(st==="soon"||st==="future")return`あと${ds}日で開始`;
+      return"終了";
+    }
+
+    function dateRange(ev){
+      const s=new Date(ev.start.dateTime||ev.start.date);
+      const e=new Date(ev.end.dateTime||ev.end.date);
+      const fmt=x=>`${x.getFullYear()}/${String(x.getMonth()+1).padStart(2,"0")}/${String(x.getDate()).padStart(2,"0")}`;
+      return `${fmt(s)}〜${fmt(e)}`;
+    }
+
+    function markerIcon(st){
+      const c={active:"http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+      soon:"http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+      ending:"http://maps.google.com/mapfiles/ms/icons/orange-dot.png",
+      future:"http://maps.google.com/mapfiles/ms/icons/white-dot.png"};
+      return c[st]||c.future;
+    }
+
+    async function geocode(addr){
+      return new Promise(r=>{
+        geocoder.geocode({address:addr},(res,st)=>{
+          if(st==="OK"&&res[0]){
+            const loc=res[0].formatted_address;
+            const m=loc.match(/(..県|..都|..府|北海道)/);
+            r({lat:res[0].geometry.location.lat(),lng:res[0].geometry.location.lng(),pref:m?m[0]:"",full:loc});
+          }else r(null);
+        });
       });
-
-      const events = await loadEvents();
-
-      for (const event of events) {
-        if (!event.location) continue;
-
-        const start = new Date(event.start.dateTime || event.start.date);
-        const end = new Date(event.end.dateTime || event.end.date);
-        const now = new Date();
-
-        // 現在時刻がイベント期間内ならピンを立てる
-        if (now >= start && now <= end) {
-          const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(event.location)}&key=${CALENDAR_API_KEY}`;
-          const geoRes = await fetch(geocodeUrl);
-          const geoData = await geoRes.json();
-          if (!geoData.results[0]) continue;
-
-          const position = geoData.results[0].geometry.location;
-          const marker = new google.maps.Marker({
-            position,
-            map,
-            title: event.summary || "イベント",
-          });
-
-          const info = new google.maps.InfoWindow({
-            content: `<strong>${event.summary}</strong><br>${event.location}<br>${start.toLocaleDateString()}〜${end.toLocaleDateString()}`,
-          });
-
-          marker.addListener("click", () => info.open(map, marker));
-        }
-      }
     }
+
+    async function loadEvents(){
+      const base=`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events`;
+      const q=new URLSearchParams({key:API_KEY,timeMin:isoDaysFromNow(-3),timeMax:isoDaysFromNow(180),singleEvents:"true",orderBy:"startTime"});
+      const r=await fetch(`${base}?${q}`);const d=await r.json();return Array.isArray(d.items)?d.items:[];
+    }
+
+    async function initMap(){
+      map=new google.maps.Map(document.getElementById("map"),{center:{lat:35.68,lng:139.76},zoom:11,disableDefaultUI:true,zoomControl:true});
+      geocoder=new google.maps.Geocoder();
+      const evs=await loadEvents();markers=[];
+      for(const ev of evs){
+        const st=markerStatus(ev);if(st==="past")continue;
+        if(!ev.location)continue;
+        const pos=await geocode(ev.location);if(!pos)continue;
+        const lbl=labelDays(ev,st);
+        const range=dateRange(ev);
+        const start=new Date(ev.start.dateTime||ev.start.date);
+        const end=new Date(ev.end.dateTime||ev.end.date);
+        const gmap=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pos.full)}`;
+        const mk=new google.maps.Marker({position:pos,map,title:ev.summary,icon:markerIcon(st)});
+        const info=new google.maps.InfoWindow({
+          content:`<div style="font-weight:600;">${ev.summary}</div>
+                   <div style="font-size:12px;color:#444;margin:4px 0;">${range}</div>
+                   <div style="margin:4px 0;padding:3px 8px;border:1px solid #ccc;border-radius:6px;display:inline-block;font-size:12px;background:#f9f9f9;">${lbl}</div>
+                   <div style="font-size:11px;color:#666;margin-top:4px;">${pos.full}</div>
+                   <a href="${gmap}" target="_blank" style="font-size:12px;color:#007aff;">Googleマップで開く</a>`
+        });
+        mk.addListener("click",()=>{if(openInfo)openInfo.close();info.open(map,mk);openInfo=info;});
+        markers.push({marker:mk,ev,status:st,pref:pos.pref,full:pos.full,label:lbl,range,gmap,start,end});
+      }
+      renderList("all");
+      setStatus(`${markers.length}件のイベント`);
+    }
+
+    function renderList(filter){
+      const list=document.getElementById("eventList");
+      list.innerHTML="";
+      const q=searchQuery.toLowerCase();
+      const sorted=[...markers].sort((a,b)=>{
+        if(a.status==="future"&&b.status!=="future")return 1;
+        if(b.status==="future"&&a.status!=="future")return -1;
+        if(a.status==="future"&&b.status==="future")return a.start-b.start;
+        return a.end-b.end;
+      });
+      sorted.forEach(({marker,ev,status,pref,full,label,range,gmap})=>{
+        if(filter!=="all"&&status!==filter)return;
+        if(!(ev.summary+full).toLowerCase().includes(q))return;
+        const e=document.createElement("div");
+        e.className=`event ${status}Ev`;
+        e.innerHTML=`
+          <div class="eventTitle">${ev.summary}</div>
+          <div class="eventPeriod">${range}</div>
+          <div class="eventDate ${status==="active"?"active":"future"}">${label}</div>
+          <div class="eventLocation">${full}</div>
+          <a href="${gmap}" target="_blank" class="mapLink">Googleマップで開く</a>`;
+        e.onclick=()=>{
+          map.panTo(marker.getPosition());
+          map.setZoom(14);
+          google.maps.event.trigger(marker,"click");
+        };
+        list.appendChild(e);
+      });
+    }
+
+    // 検索関連
+    const searchBox=document.getElementById("searchBox");
+    const clearBtn=document.getElementById("clearBtn");
+    const suggestBox=document.getElementById("suggestions");
+
+    searchBox.addEventListener("input",()=>{
+      searchQuery=searchBox.value.trim().toLowerCase();
+      clearBtn.style.display=searchQuery?"inline":"none";
+      suggestBox.innerHTML="";
+      if(!searchQuery){suggestBox.style.display="none";renderList(document.querySelector(".tab.active").dataset.status);return;}
+      const filtered=markers.filter(({ev,full})=>
+        (ev.summary+full).toLowerCase().includes(searchQuery));
+      if(filtered.length===0){suggestBox.style.display="none";return;}
+      filtered.slice(0,5).forEach(({ev,marker,full})=>{
+        const item=document.createElement("div");
+        item.className="suggestion-item";
+        item.textContent=`${ev.summary} (${full})`;
+        item.onclick=()=>{
+          suggestBox.style.display="none";
+          searchBox.value=ev.summary;
+          map.panTo(marker.getPosition());
+          map.setZoom(14);
+          google.maps.event.trigger(marker,"click");
+        };
+        suggestBox.appendChild(item);
+      });
+      suggestBox.style.display="block";
+    });
+
+    clearBtn.onclick=()=>{
+      searchBox.value="";
+      searchQuery="";
+      clearBtn.style.display="none";
+      suggestBox.style.display="none";
+      renderList(document.querySelector(".tab.active").dataset.status);
+    };
+
+    document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+      document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+      t.classList.add("active");
+      renderList(t.dataset.status);
+    });
   </script>
 
-<script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q&callback=initMap"
-  async
-  defer>
-</script>
-
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDw-qL8u-CeoSVQ8riILhnoBLjo2Btkz8Q&callback=initMap" async defer></script>
 </body>
 </html>
